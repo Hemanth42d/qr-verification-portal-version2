@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://qr-verify.mvhemanth.me/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

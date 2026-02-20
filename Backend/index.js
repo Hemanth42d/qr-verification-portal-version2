@@ -2,8 +2,6 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import path from "path";
-import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
 import env from "./config/env.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -11,13 +9,23 @@ import templateRoutes from "./routes/templateRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
 import emailRoutes from "./routes/emailRoutes.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
 
 // Middleware
-app.use(cors({ origin: env.frontendUrl, credentials: true }));
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    const allowed = [
+      env.frontendUrl,
+      /\.vercel\.app$/,
+    ];
+    const isAllowed = allowed.some((o) =>
+      o instanceof RegExp ? o.test(origin) : o === origin
+    );
+    callback(null, isAllowed);
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -31,15 +39,6 @@ app.use("/api/emails", emailRoutes);
 // Health check
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-// Serve frontend static files in production
-const distPath = path.join(__dirname, "../Frontend/qr-verify/dist");
-app.use(express.static(distPath));
-
-// SPA catch-all — serve index.html for any non-API route
-app.get("/{*splat}", (_req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
 });
 
 // Global error handler
