@@ -2,12 +2,17 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import path from "path";
+import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
 import env from "./config/env.js";
 import authRoutes from "./routes/authRoutes.js";
 import templateRoutes from "./routes/templateRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
 import emailRoutes from "./routes/emailRoutes.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -24,12 +29,21 @@ app.use("/api/certificates", certificateRoutes);
 app.use("/api/emails", emailRoutes);
 
 // Health check
-app.get("/api/health", (req, res) => {
+app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Serve frontend static files in production
+const distPath = path.join(__dirname, "../Frontend/qr-verify/dist");
+app.use(express.static(distPath));
+
+// SPA catch-all — serve index.html for any non-API route
+app.get("/{*splat}", (_req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
+});
+
 // Global error handler
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
   console.error("Unhandled error:", err);
   if (err.name === "MulterError") {
     return res.status(400).json({ message: `Upload error: ${err.message}` });
