@@ -5,7 +5,7 @@ import BatchProcessorService from "../services/BatchProcessorService.js";
 
 export const sendBulkEmails = async (req, res) => {
   try {
-    const { certificateIds } = req.body;
+    const { certificateIds, customBody } = req.body;
 
     if (!certificateIds || !Array.isArray(certificateIds) || certificateIds.length === 0) {
       return res.status(400).json({ message: "Certificate IDs array is required" });
@@ -23,17 +23,16 @@ export const sendBulkEmails = async (req, res) => {
 
     const jobId = uuidv4();
 
-    // Start batch email sending (non-blocking)
     BatchProcessorService.processBatch(
       jobId,
       certificates,
       async (cert) => {
-        await EmailService.sendCertificateEmail(cert);
+        await EmailService.sendCertificateEmail(cert, customBody || null);
         cert.emailSent = true;
         await cert.save();
         return { certificateId: cert.certificateId, email: cert.email };
       },
-      { batchSize: 5, delayMs: 1000 } // Gmail rate limiting friendly
+      { batchSize: 5, delayMs: 1000 }
     );
 
     res.status(202).json({
@@ -48,7 +47,7 @@ export const sendBulkEmails = async (req, res) => {
 
 export const sendEmailsByEvent = async (req, res) => {
   try {
-    const { eventName } = req.body;
+    const { eventName, customBody } = req.body;
 
     if (!eventName) return res.status(400).json({ message: "Event name is required" });
 
@@ -68,12 +67,12 @@ export const sendEmailsByEvent = async (req, res) => {
       jobId,
       certificates,
       async (cert) => {
-        await EmailService.sendCertificateEmail(cert);
+        await EmailService.sendCertificateEmail(cert, customBody || null);
         cert.emailSent = true;
         await cert.save();
         return { certificateId: cert.certificateId, email: cert.email };
       },
-      { batchSize: 3, delayMs: 2000 } // Gmail rate limiting friendly
+      { batchSize: 3, delayMs: 2000 }
     );
 
     res.status(202).json({

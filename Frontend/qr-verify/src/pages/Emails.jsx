@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import api from "../api/axios";
 import toast from "react-hot-toast";
-import { LuMail, LuSend, LuRefreshCw, LuCircleCheck, LuTrash2, LuCloudUpload } from "react-icons/lu";
+import { LuMail, LuSend, LuRefreshCw, LuCircleCheck, LuTrash2, LuCloudUpload, LuPenLine, LuX } from "react-icons/lu";
 
 export default function Emails() {
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sendingBatch, setSendingBatch] = useState(null); // eventName of batch being sent
+  const [sendingBatch, setSendingBatch] = useState(null);
   const [reuploadingBatch, setReuploadingBatch] = useState(null);
-  const [jobs, setJobs] = useState({}); // eventName -> job status
+  const [jobs, setJobs] = useState({});
+  const [customBodyMap, setCustomBodyMap] = useState({});
+  const [showCustomBody, setShowCustomBody] = useState({});
 
   const fetchBatches = async () => {
     setLoading(true);
@@ -30,7 +32,11 @@ export default function Emails() {
 
     setSendingBatch(batch.eventName);
     try {
-      const { data } = await api.post("/emails/send-bulk", { certificateIds: pending });
+      const body = { certificateIds: pending };
+      const custom = customBodyMap[batch.eventName]?.trim();
+      if (custom) body.customBody = custom;
+
+      const { data } = await api.post("/emails/send-bulk", body);
       toast.success(`Sending ${data.totalEmails} emails for "${batch.eventName}"`);
       setJobs((prev) => ({ ...prev, [batch.eventName]: { jobId: data.jobId, ...data } }));
       pollJob(batch.eventName, data.jobId);
@@ -53,7 +59,6 @@ export default function Emails() {
           } else {
             toast("Completed with some errors", { icon: "⚠️" });
           }
-          // Refresh batches to update counts
           fetchBatches();
         }
       } catch {
@@ -101,6 +106,10 @@ export default function Emails() {
     }
   };
 
+  const toggleCustomBody = (eventName) => {
+    setShowCustomBody((prev) => ({ ...prev, [eventName]: !prev[eventName] }));
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -130,6 +139,7 @@ export default function Emails() {
             const isProcessing = job?.status === "processing";
             const isSending = sendingBatch === batch.eventName;
             const allSent = batch.emailsPending === 0;
+            const isCustomOpen = showCustomBody[batch.eventName];
 
             return (
               <div key={`${batch.eventName}-${batch.eventDate}`} className="bg-white rounded-xl border border-slate-200 p-6">
@@ -151,7 +161,19 @@ export default function Emails() {
                     </div>
                   </div>
 
-                  <div className="flex-shrink-0 flex items-center gap-2">
+                  <div className="flex-shrink-0 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => toggleCustomBody(batch.eventName)}
+                      className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition-colors ${
+                        isCustomOpen
+                          ? "text-indigo-600 bg-indigo-50 border-indigo-200"
+                          : "text-slate-600 bg-white border-slate-200 hover:bg-slate-50"
+                      }`}
+                      title="Custom email body"
+                    >
+                      {isCustomOpen ? <LuX size={16} /> : <LuPenLine size={16} />}
+                      {isCustomOpen ? "Close" : "Custom Body"}
+                    </button>
                     <button
                       onClick={() => reuploadToDrive(batch)}
                       disabled={reuploadingBatch === batch.eventName}
@@ -184,6 +206,25 @@ export default function Emails() {
                     </button>
                   </div>
                 </div>
+
+                {/* Custom body textarea */}
+                {isCustomOpen && (
+                  <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Custom Email Body
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={customBodyMap[batch.eventName] || ""}
+                      onChange={(e) => setCustomBodyMap((prev) => ({ ...prev, [batch.eventName]: e.target.value }))}
+                      placeholder={`Thank you for participating in ${batch.eventName}. Your certificate of participation has been generated successfully.`}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">
+                      Leave empty to use the default message. You can use basic HTML like &lt;strong&gt; and &lt;em&gt; for formatting.
+                    </p>
+                  </div>
+                )}
 
                 {/* Progress bar when sending */}
                 {isProcessing && job && (
